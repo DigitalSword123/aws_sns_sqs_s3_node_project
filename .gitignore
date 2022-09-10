@@ -1,0 +1,10 @@
+node_modules/
+package-lock.json
+id_ed25519
+help.txt
+**/.terraform/*
+new Folder/
+*.zip 
+*.exe
+aws_zip_test
+yaml comparison

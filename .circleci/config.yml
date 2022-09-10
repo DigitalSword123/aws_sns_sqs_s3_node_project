@@ -1,0 +1,390 @@
+version: '2.0'
+orbs:
+  node: circleci/node@5.0.2
+jobs:
+  
+  npm_build: &npm_build
+    docker:
+      - image: circleci/node:latest
+    working_directory: ~/aws_sns_sqs_s3_node_project
+    steps:
+      - checkout
+      - run: bash ./scripts/npm_build.sh
+
+  npm_unit_test: &npm_unit_test
+    docker:
+      - image: circleci/node:latest # use the default executor defined within the orb
+    steps:
+      - checkout
+      - run: bash ./scripts/npm-test.sh
+  
+  # .debug_logic: &debug_logic
+  #   - run : 
+  #       command: |
+  #         if ["$DEBUG=true"] ; then
+  #           set -xv
+  #           echo "ARTIFACT_ID is $ARTIFACT_ID"
+  #           echo "VERSION is $APP_VERSION"
+  #           echo "NEXT_DEVELOPEMENT_VERSION is $NEXT_DEVELOPEMENT_VERSION"
+  #           echo "prinitng package.json file"
+  #           cat package.json
+  #           git config --list
+  #         fi
+  
+  # .only_branch_default: &only_branch_default
+  #   only:
+  #     - /^feature/.*$/
+  #     - /^hotfix/.*$/
+  #     - /^bugfix/.*$/
+  #     - merge_requests
+  #   except:
+  #     refs:
+  #       - main
+  #       - tags
+  
+  # .except_master: &except_master
+  #   rules:
+  #     - if: $CIRCLE_BRANCH=="master"
+  #       when: never
+  #     - when: on_success
+  
+  # .only_merge_request: &only_merge_request
+    
+
+  init-before-script: &init-before-script
+    docker:
+        - image: cimg/python:3.10.6
+    working_directory: ~/
+    steps:
+      - run : 
+          name: beofre_script
+          command: |
+            echo $(pwd)
+            mkdir .aws
+            mkdir .jfrog
+            mkdir .m2
+            ls -al
+            pip install --upgrade pip
+            pip install semver # https://python-semver.readthedocs.io/en/2.9.0/index.html
+            if [ "$DEBUG" = true ] ; then
+              ls -alrt ~/.aws && ls -alrt ~ && ls -alrtr ~/.jfrog/ && ls -alrt ~/.m2
+            fi
+
+  init-before:
+    <<: *init-before-script
+    environment:
+      DEBUG: true
+# https://circleci.com/docs/workspaces
+  init-branch:
+    docker:
+      - image: cimg/python:3.10.6
+    working_directory: ~/aws_sns_sqs_s3_node_project
+    steps:
+      - checkout 
+      - setup_remote_docker
+      - run: bash ./scripts/init-script-branch.sh
+          # Persist the specified paths (workspace/build.env) into the workspace for use in build job.
+      - persist_to_workspace:
+          # Must be an absolute path, or relative path from working_directory. This is a directory on the container which is
+          # taken to be the root directory of the workspace.
+          root: .
+          # Must be relative path from root
+          paths:
+            - build.env
+    environment:
+      DEBUG: true
+      VARIABLE_FILE: build.env
+
+  init-main:
+      docker:
+        - image: cimg/python:3.10.6
+      working_directory: ~/aws_sns_sqs_s3_node_project
+      steps:
+        - checkout 
+        - setup_remote_docker
+        - run: bash ./scripts/init-script-main.sh
+            # Persist the specified paths (workspace/build.env) into the workspace for use in build job.
+        - persist_to_workspace:
+            # Must be an absolute path, or relative path from working_directory. This is a directory on the container which is
+            # taken to be the root directory of the workspace.
+            root: .
+            # Must be relative path from root
+            paths:
+              - build.env
+      environment:
+        DEBUG: true
+        VARIABLE_FILE: build.env
+            
+  build-branch:
+    docker:
+      - image: circleci/node:latest
+    working_directory: ~/aws_sns_sqs_s3_node_project
+    steps:
+      - checkout
+      - attach_workspace:
+          # Must be absolute path or relative path from working_directory
+          at: .
+      - run: bash ./scripts/npm_build_branch.sh
+      - persist_to_workspace:
+          root: .
+          paths:
+            - dist-node_aws_sqs 
+            - build.env
+    environment:
+      tag: dev
+      ARTIFACTORY_URL: "https://devopsamiya.jfrog.io/artifactory/snapshots-npm/"
+      PROJECT_NAME: aws_sns_sqs_s3_node_project
+      VARIABLE_FILE: build.env 
+      MODULE_NAME: node_aws_sqs 
+
+  build-main:
+    docker:
+      - image: circleci/node:latest
+    working_directory: ~/aws_sns_sqs_s3_node_project
+    steps:
+      - checkout
+      - attach_workspace:
+          # Must be absolute path or relative path from working_directory
+          at: .
+      - run: bash ./scripts/npm_build_main.sh
+      - persist_to_workspace:
+          root: .
+          paths:
+            - dist-node_aws_sqs 
+            - build.env
+    environment:
+      tag: dev
+      ARTIFACTORY_URL: "https://devopsamiya.jfrog.io/artifactory/snapshots-npm/"
+      PROJECT_NAME: aws_sns_sqs_s3_node_project
+      VARIABLE_FILE: build.env 
+      MODULE_NAME: node_aws_sqs
+
+  test:
+    <<: *npm_unit_test
+    environment:
+      tag: dev
+      POSTGRESS_USER: "postgres"
+      POSTGRESS_DB: "employee_data"
+      PGPASSWORD: "mypassword"
+
+  deploy_dev_branch:
+    docker:
+      - image: circleci/node:latest
+    working_directory: ~/aws_sns_sqs_s3_node_project
+    environment:
+      DEPLOY_ENVIRONMENT: dev
+      MODULE_NAME: node_aws_sqs
+      VARIABLE_FILE: build.env
+    steps:
+      - checkout 
+      - setup_remote_docker
+      - attach_workspace:
+          at: .
+      - run : 
+          name: deploy-script
+          command: |
+            bash ./scripts/terraform_install.sh   
+            ls -al
+            bash ./scripts/before_script_deploy.sh
+            bash ./scripts/deploy_script.sh
+            echo `deployed successfully in $DEPLOY_ENVIRONMENT environment`
+      - persist_to_workspace:
+          root: .
+          paths:
+            - dist-node_aws_sqs 
+            - build.env
+
+  deploy_dev_main:
+    docker:
+      - image: circleci/node:latest
+    working_directory: ~/aws_sns_sqs_s3_node_project
+    environment:
+      DEPLOY_ENVIRONMENT: dev
+      MODULE_NAME: node_aws_sqs
+      VARIABLE_FILE: build.env
+    steps:
+      - checkout 
+      - setup_remote_docker
+      - attach_workspace:
+          at: .
+      - run : 
+          name: deploy-script
+          command: |
+            bash ./scripts/terraform_install.sh   
+            ls -al
+            bash ./scripts/before_script_deploy.sh
+            bash ./scripts/deploy_script.sh
+            echo `deployed successfully in $DEPLOY_ENVIRONMENT environment`
+      - persist_to_workspace:
+          root: .
+          paths:
+            - dist-node_aws_sqs 
+            - build.env
+
+  deploy_qa:
+      docker:
+        - image: circleci/node:latest
+      working_directory: ~/aws_sns_sqs_s3_node_project
+      environment:
+        DEPLOY_ENVIRONMENT: qa
+        MODULE_NAME: node_aws_sqs
+        VARIABLE_FILE: build.env
+      steps:
+        - checkout 
+        - setup_remote_docker
+        - attach_workspace:
+            at: .
+        - run : 
+            name: deploy-script
+            command: |
+              bash ./scripts/terraform_install.sh   
+              ls -al
+              bash ./scripts/before_script_deploy.sh
+              bash ./scripts/deploy_script.sh
+              echo `deployed successfully in $DEPLOY_ENVIRONMENT environment`
+        - persist_to_workspace:
+            root: .
+            paths:
+              - dist-node_aws_sqs 
+              - build.env
+
+  deploy_uat:
+      docker:
+        - image: circleci/node:latest
+      working_directory: ~/aws_sns_sqs_s3_node_project
+      environment:
+        DEPLOY_ENVIRONMENT: uat
+        MODULE_NAME: node_aws_sqs
+        VARIABLE_FILE: build.env
+      steps:
+        - checkout 
+        - setup_remote_docker
+        - attach_workspace:
+            at: .
+        - run : 
+            name: deploy-script
+            command: |
+              bash ./scripts/terraform_install.sh   
+              ls -al
+              bash ./scripts/before_script_deploy.sh
+              bash ./scripts/deploy_script.sh
+              echo `deployed successfully in $DEPLOY_ENVIRONMENT environment`
+        - persist_to_workspace:
+            root: .
+            paths:
+              - dist-node_aws_sqs 
+              - build.env
+
+  deploy_prod:
+      docker:
+        - image: circleci/node:latest
+      working_directory: ~/aws_sns_sqs_s3_node_project
+      environment:
+        DEPLOY_ENVIRONMENT: prod
+        MODULE_NAME: node_aws_sqs
+        VARIABLE_FILE: build.env
+      steps:
+        - checkout 
+        - setup_remote_docker
+        - attach_workspace:
+            at: .
+        - run : 
+            name: deploy-script
+            command: |
+              bash ./scripts/terraform_install.sh   
+              ls -al
+              bash ./scripts/before_script_deploy.sh
+              bash ./scripts/deploy_script.sh
+              echo `deployed successfully in $DEPLOY_ENVIRONMENT environment`
+        - persist_to_workspace:
+            root: .
+            paths:
+              - dist-node_aws_sqs 
+              - build.env
+
+workflows:
+  version: 2
+  stage_workflow:
+    jobs:
+      - init-before:
+          filters:
+            branches:
+              only: 
+                - /^feature/.*$/
+                - main
+      - init-branch:
+          requires:
+            - init-before
+          filters:
+            branches:
+              only: 
+                - /^feature/.*$/
+      - init-main:
+          requires:
+            - init-before
+          filters:
+            branches:
+              only: 
+                - main
+      - build-branch:
+          filters:
+            branches:
+              only: 
+                - /^feature/.*$/
+          requires:
+            - init-branch
+      - build-main:
+          filters:
+            branches:
+              only: 
+                - main
+          requires:
+            - init-main
+      - test:
+          filters:
+            branches:
+              only: /^feature/.*$/
+          requires:
+            - build-branch
+      - deploy_dev_branch:
+          filters:
+            branches:
+              only: 
+                - /^feature/.*$/
+                - main
+          requires:
+            - build-branch
+      - deploy_dev_main:
+          filters:
+            branches:
+              only: 
+                - main
+          requires:
+            - build-main
+      - trigger_qa:
+          type: approval
+      - deploy_qa:
+          filters:
+            branches:
+              only: main
+          requires:
+            - trigger_qa
+            - deploy_dev_main
+      - trigger_uat:
+          type: approval
+      - deploy_uat:
+          filters:
+            branches:
+              only: main
+          requires:
+            - trigger_uat
+            - deploy_qa
+      - trigger_prod:
+          type: approval
+      - deploy_prod:
+          filters:
+            branches:
+              only: main
+          requires:
+            - trigger_prod
+            - deploy_uat
