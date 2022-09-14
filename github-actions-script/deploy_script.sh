@@ -4,6 +4,13 @@ cp build_output_1/${VARIABLE_FILE} ./${VARIABLE_FILE}
 
 cp build_output_1/dist-${MODULE_NAME}.zip .
 
+echo "******************reading build_output_1 start*****************"
+
+cd build_output_1
+ls -al
+
+cd ..
+
 mkdir dist-${MODULE_NAME}
 
 unzip dist-${MODULE_NAME}.zip -d ./dist-${MODULE_NAME}
