@@ -13,7 +13,7 @@ cd ..
 
 mkdir dist-${MODULE_NAME}
 
-unzip dist-${MODULE_NAME}.zip -d ./dist-${MODULE_NAME}
+unzip dist-${MODULE_NAME}.zip
 
 source ${VARIABLE_FILE}
 echo "******************reading VARIABLE_FILE start*****************"
