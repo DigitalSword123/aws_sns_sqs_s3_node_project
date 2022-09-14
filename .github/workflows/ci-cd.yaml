@@ -12,7 +12,7 @@ on:
       - 'bugfix/**'
 
 env:
-  MODULE_NAME: employee-data
+  MODULE_NAME: aws_sns_sqs_s3_node_project
 
 jobs:
   init-before:
@@ -101,7 +101,7 @@ jobs:
         with:
           name: build_output_1
           path: |
-            dist-employee-data.zip
+            dist-aws_sns_sqs_s3_node_project.zip
             build.env 
 
 
@@ -133,7 +133,7 @@ jobs:
         with:
           name: build_output_1
           path: |
-            dist-employee-data.zip
+            dist-aws_sns_sqs_s3_node_project.zip
             build.env 
 
       # - name: jfrog upload
