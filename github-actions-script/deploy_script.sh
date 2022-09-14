@@ -4,7 +4,9 @@ cp build_output_1/${VARIABLE_FILE} ./${VARIABLE_FILE}
 
 cp build_output_1/dist-${MODULE_NAME}.zip .
 
-unzip dist-${MODULE_NAME}.zip
+mkdir dist-${MODULE_NAME}
+
+unzip dist-${MODULE_NAME}.zip -d ./dist-${MODULE_NAME}
 
 source ${VARIABLE_FILE}
 echo "******************reading VARIABLE_FILE start*****************"
@@ -13,12 +15,12 @@ echo "******************reading VARIABLE_FILE end*****************"
 
 echo "--------------------Switching to dist directory-------------------"
 cd dist-${MODULE_NAME}
-echo "printing all files in target directory"
+echo "printing all files in dist directory"
 
 ls -altr
 
 echo total size of the deployement package=$(du -sh .)
-echo "------------------printing all files in target directory end --------------------------"
+echo "------------------printing all files in dist directory end --------------------------"
 echo "STATE_BUCKET" $STATE_BUCKET
 echo "AWSENV" $AWSENV
 echo "AWS_REGION" $AWS_REGION
