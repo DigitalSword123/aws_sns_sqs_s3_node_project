@@ -1,4 +1,4 @@
-name: node server employee data CI/CD pipeline
+name: aws sqs sns project CI/CD pipeline
 
 on:
   push:
